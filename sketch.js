@@ -1,41 +1,99 @@
-// Daniel Shiffman
-// https://thecodingtrain.com/CodingChallenges/145-2d-ray-casting.html
-// https://youtu.be/TOEi6T2mtHo
+let url = 'https://coolors.co/ee6055-60d394-aaf683-ffd97d-ff9b85';
+let palette = url.replace('https://coolors.co/', '').split('-').map(c => `#${ c }`);
+let vmin, vmax;
+let font;
+let fs;
+let points;
+let bounds;
+let contours = [];
+let txt = 'Émile Blais';
+let ctx;
 
-// 2D Ray Casting
-
-let walls = [];
-let ray;
-let particle;
-let xoff = 0;
-let yoff = 10000;
+function preload() {
+  font = loadFont('AllertaStencil-Regular.ttf');
+}
 
 function setup() {
-  createCanvas(400, 400);
-  for (let i = 0; i < 5; i++) {
-    let x1 = random(width);
-    let x2 = random(width);
-    let y1 = random(height);
-    let y2 = random(height);
-    walls[i] = new Boundary(x1, y1, x2, y2);
+  createCanvas(windowWidth, windowHeight);
+  vmin = (width < height) ? width : height;
+  vmax = (width > height) ? width : height;
+  fs = vmin * 0.0085;
+  points = font.textToPoints(txt, 0, 0, fs, {
+    sampleFactor: 8,
+    simplifyThreshold: 0
+  });
+  bounds = font.textBounds(txt, 0, 0, fs);
+  
+  for (let i = 0; i < points.length; i++) {
+    let p1 = points[i];
+    if (i === 0) {
+      contours.push([]);
+    } else {
+      let p0 = points[i - 1];
+      let d = dist(p0.x, p0.y, p1.x, p1.y);
+      if (d > fs / 10) {
+        contours.push([]);
+      }
+    }
+    contours[contours.length - 1].push(p1);
   }
-  walls.push(new Boundary(-1, -1, width, -1));
-  walls.push(new Boundary(width, -1, width, height));
-  walls.push(new Boundary(width, height, -1, height));
-  walls.push(new Boundary(-1, height, -1, -1));
-  particle = new Particle();
+  
+  contours.sort(function (a, b) {
+    let avrAx = 0;
+    for (let i = 0; i < a.length; i++) {
+      avrAx += a[i].x;
+    }
+    avrAx /= a.length;
+    let avrBx = 0;
+    for (let i = 0; i < b.length; i++) {
+      avrBx += b[i].x;
+    }
+    avrBx /= b.length;
+    return avrAx - avrBx;
+  });
+  
+  ctx = drawingContext;
+  ctx.shadowBlur = fs * 3;
+  strokeWeight(fs * 0.0225);
+  strokeJoin(ROUND);
+  noFill();
+}
+
+function neon(drawStroke) {
+  for (let i = 0; i < contours.length; i++) {
+    let points = contours[i];
+    beginShape(TESS);
+    for (let j = 0; j < points.length; j++) {
+      let p = points[j];
+      let c = color(palette[i % palette.length]);
+      let r = c.levels[0];
+      let g = c.levels[1];
+      let b = c.levels[2];
+      let n = noise(i, frameCount * (drawStroke ? 0.03 : 6));
+      n = 1.0 - n * n;
+      let a = (floor(n * 2) / 2 + 0.1)  * 255;
+      ctx.shadowColor = `rgba(${ r }, ${ g }, ${ b }, ${ drawStroke ? 1 : n })`;
+      if (drawStroke) {
+        stroke(r, g, b, a);
+      } else {
+        stroke(0);
+      }
+      vertex(p.x, p.y);
+    }
+    endShape(CLOSE);
+  }
 }
 
 function draw() {
-  background(0);
-  for (let wall of walls) {
-    wall.show();
-  }
-  //particle.update(noise(xoff) * width, noise(yoff) * height);
-  particle.update(mouseX, mouseY);
-  particle.show();
-  particle.look(walls);
-
-  xoff += 0.01;
-  yoff += 0.01;
+  background(20);
+  blendMode(ADD);
+  
+  translate(width / 2, height / 2);
+  scale((vmin * 0.175) / fs);
+  translate(-bounds.w / 2, bounds.h / 2);
+  
+  neon(false);
+  neon(true);
+  
+  blendMode(BLEND);
 }
